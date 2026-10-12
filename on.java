@@ -21,9 +21,9 @@ class on{
             nodes.add(arr);
         }
         sc.close();
-        int no_of_nodes=nodes.length+1;
-        while(no_of_nodes--){
+        int no_of_nodes=nodes.size()+1;
+        // while(no_of_nodes-->0){
 
-        }
+        // }
     }
 }
