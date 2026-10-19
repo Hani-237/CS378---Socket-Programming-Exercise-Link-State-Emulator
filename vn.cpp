@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 
 using namespace std;
 
@@ -27,9 +29,9 @@ int main(int argc,char* argv[]){
         return 1;
     }
 
-    int sockfd;
-    sockfd = socket(PF_INET,SOCK_DGRAM,0);
-    if (sockfd < 0) {
+    int udp_sockfd;
+    udp_sockfd = socket(AF_INET,SOCK_DGRAM,0);
+    if (udp_sockfd < 0) {
         cerr << "ERROR creating UDP socket" << endl;
         return 1; 
     }
@@ -39,12 +41,67 @@ int main(int argc,char* argv[]){
     my_addr.sin_port = htons(my_udp_port);
     my_addr.sin_addr.s_addr = INADDR_ANY;
     memset(&(my_addr.sin_zero),'\0',8);
-    if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(my_addr)) < 0) {
+    if (bind(udp_sockfd, (struct sockaddr *)&my_addr, sizeof(my_addr)) < 0) {
         cerr << "ERROR binding UDP socket" << endl;
-        close(sockfd);
+        close(udp_sockfd);
         return 1;
     }
 
+    int tcp_sockfd;
+    tcp_sockfd = socket(AF_INET,SOCK_STREAM,0);
+    if (tcp_sockfd < 0) {
+        cerr << "ERROR creating TCP socket" << endl;
+        return 1; 
+    }
 
+    sockaddr_in on_addr{};
+    on_addr.sin_family = AF_INET;
+    on_addr.sin_port = htons(on_port);
+    on_addr.sin_addr.s_addr = inet_addr(on_ip.c_str());
+    if (on_addr.sin_addr.s_addr == INADDR_NONE) {
+        cerr << "ERROR: Invalid Oracle Node IP address " << endl;
+        close(tcp_sockfd);
+        close(udp_sockfd);
+        return 1;
+    }
+    
+    if (connect(tcp_sockfd, (struct sockaddr *)&on_addr, sizeof(on_addr)) < 0) {
+        cerr << "ERROR connecting to Oracle Node" << endl;
+        close(tcp_sockfd);
+        close(udp_sockfd);
+        return 1;
+    }
+
+    char my_hostname[256];
+    if (gethostname(my_hostname, sizeof(my_hostname)) < 0) {
+        cerr << "ERROR: gethostname failed" << endl;
+        close(tcp_sockfd);
+        close(udp_sockfd);
+        return 1;
+    }
+
+    struct hostent *h = gethostbyname(my_hostname);
+    if (h == NULL) {
+        cerr << "ERROR: gethostbyname failed" << endl;
+        close(tcp_sockfd);
+        close(udp_sockfd);
+        return 1;
+    }
+
+    char msg[6];
+    memcpy(msg, h->h_addr, 4);
+    uint16_t vn_port = htons(my_udp_port);
+    memcpy(msg + 4, &vn_port, 2);
+
+    if (send(tcp_sockfd,msg,6,0) < 0){
+        cerr << "ERROR sending CONNECT message to ON" << endl;
+        close(tcp_sockfd);
+        close(udp_sockfd);
+        return 1;
+    }
+
+    
+    
+    
     return 0;
 }
