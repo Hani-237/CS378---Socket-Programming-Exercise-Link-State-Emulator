@@ -100,6 +100,22 @@ int main(int argc,char* argv[]){
         return 1;
     }
 
+    fd_set readfds;
+    int max_fd = tcp_sockfd + 1;
+
+    while (true){
+        FD_ZERO(&readfds);
+        FD_SET(tcp_sockfd, &readfds);
+
+        if(select(max_fd,&readfds,NULL,NULL,NULL) < 0){
+            cerr << "ERROR in select()" << endl;
+            break;
+        }
+
+        if (FD_ISSET(tcp_sockfd, &readfds)){
+            
+        }
+    }
     
     
     
