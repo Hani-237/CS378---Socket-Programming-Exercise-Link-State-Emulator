@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string.h>
+#include <vector>
+#include <map>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -100,6 +102,25 @@ int main(int argc,char* argv[]){
         return 1;
     }
 
+    struct __attribute__((packed)) NodeBlock {
+        char id;
+        uint32_t ip;
+        uint16_t port;
+        uint32_t cost;
+    };
+
+    char my_node_id = '\0'; 
+
+    struct PeerAddress {
+        uint32_t ip;
+        uint16_t port;
+    };
+
+    std::map<char, PeerAddress> direct_neighbors;
+    std::map<char, std::map<char, uint32_t>> network_graph;
+    std::map<char, uint32_t> latest_seq_nums;
+    uint32_t my_seq_num = 1;
+
     fd_set readfds;
     int max_fd = tcp_sockfd + 1;
 
@@ -113,7 +134,52 @@ int main(int argc,char* argv[]){
         }
 
         if (FD_ISSET(tcp_sockfd, &readfds)){
+            uint32_t net_count = 0;
+            int bytes_read = recv(tcp_sockfd, &net_count, sizeof(net_count), 0);
             
+            if (bytes_read <= 0) {
+                cout << "Oracle Node closed the connection." << endl;
+                break;
+            }
+
+            uint32_t total_blocks = ntohl(net_count);
+            vector<NodeBlock> all_blocks(total_blocks);
+            
+            int expected_bytes = total_blocks * sizeof(NodeBlock);
+            int bytes_received_so_far = 0;
+            char* buffer = (char*)all_blocks.data();
+
+            while (bytes_received_so_far < expected_bytes) {
+                int chunk = recv(tcp_sockfd, 
+                                 buffer + bytes_received_so_far, 
+                                 expected_bytes - bytes_received_so_far, 
+                                 0);
+                
+                if (chunk <= 0) {
+                    cerr << "ERROR: Connection dropped during payload transfer." << endl;
+                    break;
+                }
+                bytes_received_so_far += chunk;
+            }
+
+            char my_id;
+            vector<NodeBlock> my_neighbors;
+
+            cout << "\n--- Received Link State from Oracle Node ---" << endl;
+            
+            for (int i = 0; i < total_blocks; i++) {
+                uint32_t actual_cost = ntohl(all_blocks[i].cost);
+                
+                if (actual_cost == 0) {
+                    my_id = all_blocks[i].id;
+                    cout << "Assigned Identity: Node " << my_id << endl;
+                } else {
+                    my_neighbors.push_back(all_blocks[i]);
+                    cout << "Neighbor: Node " << all_blocks[i].id 
+                         << " | Link Cost: " << actual_cost << endl;
+                }
+            }
+            cout << "--------------------------------------------\n" << endl;
         }
     }
     
