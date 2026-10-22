@@ -47,7 +47,7 @@ class on{
         for(int i=0;i<n;i++){
             for(int j=0;j<n;j++){
                 if(j>i){
-                    connections[i][j]=intial_connections.get(i)[j-1];
+                    connections[i][j]=intial_connections.get(i)[j-i-1];
                 }
                 else if(i==j){
                     connections[i][j]=0;
@@ -81,6 +81,8 @@ class on{
         //what about extra nodes
 
         for(vnode node:vnodes){
+            DataOutputStream out=new DataOutputStream(node.s.getOutputStream());
+            node.Output=out;
             int neighbours=0;
             int[] ad=node.adjacency;
             for(int i=0;i<no_of_nodes;i++){
@@ -88,9 +90,19 @@ class on{
                     neighbours++;
                 }
             }
-
+            out.writeInt(neighbours);
+            for(int i=0;i<ad.length;i++){
+                if(ad[i]!=-1){
+                    out.writeByte('A'+i);
+                    out.write(vnodes.get(i).ip);
+                    out.writeShort(vnodes.get(i).port);
+                    out.writeInt(ad[i]);
+                }
+            }
+            out.flush();
         }
 
         server.close();
     }
 }
+//no of neighbours(4) , Name(1) , ip(4) , port(2) , cost(4) ;
