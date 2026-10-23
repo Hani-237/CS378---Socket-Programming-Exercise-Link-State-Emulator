@@ -13,12 +13,9 @@ class vnode{
 }
 
 class on{
-    public static void main(String[] args) throws IOException{
+    static int[][] parser(String path) throws IOException{
         ArrayList<int[]> intial_connections=new ArrayList<>();
-        if(args.length!=1){
-            throw new IllegalArgumentException("Invalid input: Number of arguments should be 1");
-        }
-        try(Scanner sc=new Scanner(new File(args[0]))){
+        try(Scanner sc=new Scanner(new File(path))){
             int k=0;
             while(sc.hasNextLine()){
                 String line=sc.nextLine().trim();
@@ -57,6 +54,17 @@ class on{
                 }
             }
         }
+        return connections;
+    }
+    // static void input()
+    public static void main(String[] args) throws IOException{
+        if(args.length!=1){
+            throw new IllegalArgumentException("Invalid input: Number of arguments should be 1");
+        }
+        // File cfg=new File(args[0]);
+        // long lastSeen=cfg.lastModified();
+        int[][] connections=parser(args[0]);
+        int no_of_nodes=connections.length,n=connections.length;
         ServerSocket server=new ServerSocket(5000);
         char ch='A';
         ArrayList<vnode> vnodes=new ArrayList<>();
