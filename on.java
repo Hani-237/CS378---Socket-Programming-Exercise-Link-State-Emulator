@@ -4,12 +4,37 @@ import java.net.*;
 
 class vnode{
     int[] adjacency;
-    char ch;
+    char Name;
     Socket s;
-    DataInputStream Input;
-    DataOutputStream Output;
     int port;
     byte[] ip;
+    int neighbours;
+    public void neighbour_update(){
+        neighbours=0;
+        for(int i=0;i<adjacency.length;i++){
+            if(adjacency[i]!=-1){
+                neighbours++;
+            }
+        }
+    }
+    public void input() throws IOException{
+        DataInputStream in=new DataInputStream(s.getInputStream());
+        ip=in.readNBytes(4);
+        port=in.readUnsignedShort();
+    }
+    public void output(vnode[] vnodes) throws IOException{
+        DataOutputStream out=new DataOutputStream(s.getOutputStream());
+        out.writeInt(neighbours);
+        for(int i=0;i<adjacency.length;i++){
+            if(adjacency[i]!=-1){
+                out.writeByte('A'+i);
+                out.write(vnodes[i].ip);
+                out.writeShort(vnodes[i].port);
+                out.writeInt(adjacency[i]);
+            }
+        }
+        out.flush();
+    }
 }
 
 class on{
@@ -56,61 +81,65 @@ class on{
         }
         return connections;
     }
-    // static void input()
     public static void main(String[] args) throws IOException{
         if(args.length!=1){
             throw new IllegalArgumentException("Invalid input: Number of arguments should be 1");
         }
-        // File cfg=new File(args[0]);
-        // long lastSeen=cfg.lastModified();
+        File cfg=new File(args[0]);
+        long old_file=cfg.lastModified();
         int[][] connections=parser(args[0]);
-        int no_of_nodes=connections.length,n=connections.length;
+        int no_of_nodes=connections.length;
+        vnode[] vnodes=new vnode[26];
+        for(int i=0;i<26;i++){
+            vnodes[i]=new vnode();
+            vnodes[i].Name=(char)('A'+i);
+        }
         ServerSocket server=new ServerSocket(5000);
-        char ch='A';
-        ArrayList<vnode> vnodes=new ArrayList<>();
-        while(n-->0){
-            vnode node=new vnode();
-            Socket s=server.accept();
-            DataInputStream in=new DataInputStream(s.getInputStream());
-            byte[] ip=new byte[4];
-            ip=in.readNBytes(4);
-            if(ip.length<4){
-                //not enough bytes recieved
-            }
-            int port=in.readUnsignedShort();
-            node.ch=(char)(ch+no_of_nodes-n-1);
-            node.s=s;
-            node.Input=in;
-            node.ip=ip;
-            node.port=port;
-            node.adjacency=connections[node.ch-'A'];
-            vnodes.add(node);
-        }
-        //what about extra nodes
-
-        for(vnode node:vnodes){
-            DataOutputStream out=new DataOutputStream(node.s.getOutputStream());
-            node.Output=out;
-            int neighbours=0;
-            int[] ad=node.adjacency;
-            for(int i=0;i<no_of_nodes;i++){
-                if(ad[i]!=-1){
-                    neighbours++;
+        server.setSoTimeout(20000);
+        int p=0;
+        while(true){
+            try{
+                if(p<no_of_nodes){
+                    Socket s=server.accept();
+                    vnodes[p].s=s;
+                    vnodes[p].input();
+                    vnodes[p].adjacency=connections[p];
+                    p++;
+                }
+                else{
+                    Socket s=server.accept();
+                    vnodes[p].s=s;
+                    p++;
+                }
+                if(p==25){
+                    break;
                 }
             }
-            out.writeInt(neighbours);
-            for(int i=0;i<ad.length;i++){
-                if(ad[i]!=-1){
-                    out.writeByte('A'+i);
-                    out.write(vnodes.get(i).ip);
-                    out.writeShort(vnodes.get(i).port);
-                    out.writeInt(ad[i]);
-                }
+            catch(SocketTimeoutException e){
+                break;
             }
-            out.flush();
         }
-
-        server.close();
+        if(p<no_of_nodes){
+            throw new IllegalArgumentException("Not enough VN nodes");
+        }
+        for(int i=0;i<no_of_nodes;i++){
+            vnodes[i].neighbour_update();
+            vnodes[i].output(vnodes);
+        }
+        while(true){
+            long new_file=cfg.lastModified();
+            if(new_file!=old_file){
+                int[][] new_connections=parser(args[0]);
+                if(new_connections.length!=no_of_nodes || new_connections[0].length!=no_of_nodes){
+                    throw new IllegalArgumentException("new and old number of nodes doesn't match");
+                }
+                for(int i=0;i<no_of_nodes;i++){
+                    vnodes[i].adjacency=new_connections[i];
+                    vnodes[i].neighbour_update();
+                    vnodes[i].output(vnodes);
+                }
+                old_file=new_file;
+            }
+        }
     }
 }
-//no of neighbours(4) , Name(1) , ip(4) , port(2) , cost(4) ;
