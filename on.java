@@ -11,28 +11,45 @@ class vnode{
     int neighbours;
     public void neighbour_update(){
         neighbours=0;
-        for(int i=0;i<adjacency.length;i++){
-            if(adjacency[i]!=-1){
-                neighbours++;
-            }
+        if(adjacency.length==0){
+            neighbours=1;
         }
+        else{
+            for(int i=0;i<adjacency.length;i++){
+                if(adjacency[i]!=-1){
+                    neighbours++;
+                }
+            }
+        }    
     }
     public void input() throws IOException{
         DataInputStream in=new DataInputStream(s.getInputStream());
         ip=in.readNBytes(4);
+        if(ip.length<4){
+            throw new IllegalArgumentException("ipaddr length is not 4 Bytes");
+        }
         port=in.readUnsignedShort();
     }
     public void output(vnode[] vnodes) throws IOException{
         DataOutputStream out=new DataOutputStream(s.getOutputStream());
         out.writeInt(neighbours);
-        for(int i=0;i<adjacency.length;i++){
-            if(adjacency[i]!=-1){
-                out.writeByte('A'+i);
-                out.write(vnodes[i].ip);
-                out.writeShort(vnodes[i].port);
-                out.writeInt(adjacency[i]);
+        if(adjacency.length==0){
+            out.writeByte(Name);
+            out.write(ip);
+            out.writeShort(port);
+            out.writeInt(0);
+        }
+        else{
+            for(int i=0;i<adjacency.length;i++){
+                if(adjacency[i]!=-1){
+                    out.writeByte('A'+i);
+                    out.write(vnodes[i].ip);
+                    out.writeShort(vnodes[i].port);
+                    out.writeInt(adjacency[i]);
+                }
             }
         }
+        
         out.flush();
     }
 }
@@ -81,7 +98,7 @@ class on{
         }
         return connections;
     }
-    public static void main(String[] args) throws IOException{
+    public static void main(String[] args) throws IOException,InterruptedException{
         if(args.length!=1){
             throw new IllegalArgumentException("Invalid input: Number of arguments should be 1");
         }
@@ -89,6 +106,9 @@ class on{
         long old_file=cfg.lastModified();
         int[][] connections=parser(args[0]);
         int no_of_nodes=connections.length;
+        if(no_of_nodes>26){
+            throw new IllegalArgumentException("Number of nodes should be less than 26");
+        }
         vnode[] vnodes=new vnode[26];
         for(int i=0;i<26;i++){
             vnodes[i]=new vnode();
@@ -109,9 +129,11 @@ class on{
                 else{
                     Socket s=server.accept();
                     vnodes[p].s=s;
+                    vnodes[p].input();
+                    vnodes[p].adjacency=new int[0];
                     p++;
                 }
-                if(p==25){
+                if(p==26){
                     break;
                 }
             }
@@ -122,19 +144,25 @@ class on{
         if(p<no_of_nodes){
             throw new IllegalArgumentException("Not enough VN nodes");
         }
-        for(int i=0;i<no_of_nodes;i++){
+        for(int i=0;i<p;i++){
             vnodes[i].neighbour_update();
             vnodes[i].output(vnodes);
         }
         while(true){
+            Thread.sleep(1000);
             long new_file=cfg.lastModified();
             if(new_file!=old_file){
                 int[][] new_connections=parser(args[0]);
                 if(new_connections.length!=no_of_nodes || new_connections[0].length!=no_of_nodes){
                     throw new IllegalArgumentException("new and old number of nodes doesn't match");
                 }
-                for(int i=0;i<no_of_nodes;i++){
-                    vnodes[i].adjacency=new_connections[i];
+                for(int i=0;i<p;i++){
+                    if(i<no_of_nodes){
+                        vnodes[i].adjacency=new_connections[i];
+                    }
+                    else{
+                        vnodes[i].adjacency=new int[0];
+                    }
                     vnodes[i].neighbour_update();
                     vnodes[i].output(vnodes);
                 }
